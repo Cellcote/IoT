@@ -39,9 +39,9 @@ import org.eclipse.leshan.core.response.ExecuteResponse;
 import org.eclipse.leshan.core.response.ReadResponse;
 import org.eclipse.leshan.core.response.WriteResponse;
 
-public class SmartParkingSpotClient extends JFrame implements KeyListener {
+public class SmartParkingSpotClient {
 
-    private final LeshanClient client;
+//    private final LeshanClient client;
 
     // the registration ID assigned by the server
     private String registrationId;
@@ -49,112 +49,72 @@ public class SmartParkingSpotClient extends JFrame implements KeyListener {
     private final State stateInstance = new State();
 
     private final Location locationInstance = new Location();
-    
-    private final JLabel label;
 
     public SmartParkingSpotClient(String endpointIdentifier, final String localHostName, final int localPort, final String serverHostName,
             final int serverPort) {
-        super(endpointIdentifier);
         
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize( 150, 100 );
-        label = new JLabel("Key listener");
-        setLayout( new FlowLayout() );
-        add(label);
-        this.addKeyListener(this);
-        this.setVisible(true);
         // Initialize object list
-        ObjectsInitializer initializer = new ObjectsInitializer();
-
-        initializer.setClassForObject(3, Device.class);
-        initializer.setInstancesForObject(3345, stateInstance);
-        List<ObjectEnabler> enablers = initializer.createMandatory();
-        enablers.add(initializer.create(3345));
-
-        // Create client
-        final InetSocketAddress clientAddress = new InetSocketAddress(localHostName, localPort);
-        final InetSocketAddress serverAddress = new InetSocketAddress(serverHostName, serverPort);
-
-        client = new LeshanClient(clientAddress, serverAddress, new ArrayList<LwM2mObjectEnabler>(enablers));
-
-        // Start the client
-        client.start();
-
-        // Register to the server
-        //final String endpointIdentifier = UUID.randomUUID().toString();
-        
-        RegisterResponse response = client.send(new RegisterRequest(endpointIdentifier));
-        if (response == null) {
-            System.out.println("Registration request timeout");
-            return;
-        }
-
-        System.out.println("Device Registration (Success? " + response.getCode() + ")");
-        if (response.getCode() != ResponseCode.CREATED) {
-            // TODO Should we have a error message on response ?
-            // System.err.println("\tDevice Registration Error: " + response.getErrorMessage());
-            System.err.println(
-                    "If you're having issues connecting to the LWM2M endpoint, try using the DTLS port instead");
-            return;
-        }
-
-        registrationId = response.getRegistrationID();
-        System.out.println("\tDevice: Registered Client Location '" + registrationId + "'");
-
-        // Deregister on shutdown and stop client.
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                if (registrationId != null) {
-                    System.out.println("\tDevice: Deregistering Client '" + registrationId + "'");
-                    client.send(new DeregisterRequest(registrationId), 1000);
-                    client.stop();
-                }
-            }
-        });
+//        ObjectsInitializer initializer = new ObjectsInitializer();
+//
+//        initializer.setClassForObject(3, Device.class);
+//        initializer.setInstancesForObject(3345, stateInstance);
+//        List<ObjectEnabler> enablers = initializer.createMandatory();
+//        enablers.add(initializer.create(3345));
+//
+//        // Create client
+//        final InetSocketAddress clientAddress = new InetSocketAddress(localHostName, localPort);
+//        final InetSocketAddress serverAddress = new InetSocketAddress(serverHostName, serverPort);
+//
+//        client = new LeshanClient(clientAddress, serverAddress, new ArrayList<LwM2mObjectEnabler>(enablers));
+//
+//        // Start the client
+//        client.start();
+//
+//        // Register to the server
+//        //final String endpointIdentifier = UUID.randomUUID().toString();
+//        
+//        RegisterResponse response = client.send(new RegisterRequest(endpointIdentifier));
+//        if (response == null) {
+//            System.out.println("Registration request timeout");
+//            return;
+//        }
+//
+//        System.out.println("Device Registration (Success? " + response.getCode() + ")");
+//        if (response.getCode() != ResponseCode.CREATED) {
+//            // TODO Should we have a error message on response ?
+//            // System.err.println("\tDevice Registration Error: " + response.getErrorMessage());
+//            System.err.println(
+//                    "If you're having issues connecting to the LWM2M endpoint, try using the DTLS port instead");
+//            return;
+//        }
+//
+//        registrationId = response.getRegistrationID();
+//        System.out.println("\tDevice: Registered Client Location '" + registrationId + "'");
+//
+//        // Deregister on shutdown and stop client.
+//        Runtime.getRuntime().addShutdownHook(new Thread() {
+//            @Override
+//            public void run() {
+//                if (registrationId != null) {
+//                    System.out.println("\tDevice: Deregistering Client '" + registrationId + "'");
+//                    client.send(new DeregisterRequest(registrationId), 1000);
+//                    client.stop();
+//                }
+//            }
+//        });
 
         // Change the location through the Console
-        /**Scanner scanner = new Scanner(System.in);
-        System.out.println("Press 'w','a','s','d' to change reported Location.");
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Press 'w','a','s','d' to change reported state.");
         while (scanner.hasNext()) {
             String nextMove = scanner.next();
-            locationInstance.moveLocation(nextMove);
+            stateInstance.changeState(nextMove);
         }
         scanner.close();
-        System.out.println("test");**/
+        stateInstance.changeState(State.StateSpace.FREE);
         //locationInstance.moveLocation("w");
         
     }
-
-    @Override
-    public void keyTyped(KeyEvent e) { }
-
-    @Override
-    public void keyPressed(KeyEvent e) {
-        switch (e.getKeyCode()) {
-            case KeyEvent.VK_UP:
-                //Change to occupied
-                stateInstance.changeState(State.StateSpace.OCCUPIED);
-                label.setText("UP");
-                break;
-            case KeyEvent.VK_DOWN:
-                stateInstance.changeState(State.StateSpace.FREE);
-                label.setText("DOWN");
-                break;
-            case KeyEvent.VK_LEFT:
-                label.setText("LEFT");
-                break;
-            case KeyEvent.VK_RIGHT:
-                label.setText("RIGHT");
-                break;
-            case KeyEvent.VK_ENTER:
-                label.setText("ENTER");
-                break;
-        }
-    }
-
-    @Override
-    public void keyReleased(KeyEvent e) { }
 
     public static class Device extends BaseInstanceEnabler {
 
@@ -310,27 +270,54 @@ public class SmartParkingSpotClient extends JFrame implements KeyListener {
             state = StateSpace.FREE;
         }
         
+        public void changeState(String s) {
+            if (s.charAt(0) == 'w') {
+                changeState(State.StateSpace.OCCUPIED);
+            } else if (s.charAt(0) == 's') {
+                changeState(State.StateSpace.FREE);
+            }
+        }
+        
         public void changeState(StateSpace s) {
             state = s;
             switch(s) {
                 case FREE:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_green.py ");
-                    } catch(Exception e) { }
+                    } catch(Exception e) {
+                        System.out.println("green err");
+                    }
                     //Call python executable to put lights to Green
                     break;
                 case OCCUPIED:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_red.py ");
-                    } catch(Exception e) { }
+                    } catch(Exception e) { 
+                        System.out.println("red err");
+                    }
                     //Callpython executable to put lights to Red
                     break;
                 case RESERVED:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_orange.py ");
-                    } catch(Exception e) { }
+                    } catch(Exception e) {
+                        System.out.println("orange err");
+                    }
                     //Call pyhon executable to put lights to Orange
                     break;
+            }
+        }
+        
+        public String stateOf(StateSpace s) {
+            switch(s) {
+                case FREE:
+                    return "free";
+                case OCCUPIED:
+                    return "occupied";
+                case RESERVED:
+                    return "reserved";
+                default:
+                    return "none";
             }
         }
         
@@ -338,6 +325,8 @@ public class SmartParkingSpotClient extends JFrame implements KeyListener {
         public ReadResponse read(int resourceid) {
             System.out.println("Read on Location Resource " + resourceid);
             switch (resourceid) {
+                case 3345:
+                    return ReadResponse.success(resourceid, stateOf(state));
 //                case 5500:
 //                    return ReadResponse.success(resourceid, getDigitalInputState());
 //                case 5501:
