@@ -41,79 +41,78 @@ import org.eclipse.leshan.core.response.WriteResponse;
 
 public class SmartParkingSpotClient {
 
-//    private final LeshanClient client;
+    private final LeshanClient client;
 
     // the registration ID assigned by the server
     private String registrationId;
-    
-    private final State stateInstance = new State();
+
+//    private final State stateInstance = new State();
 
     private final Location locationInstance = new Location();
 
     public SmartParkingSpotClient(String endpointIdentifier, final String localHostName, final int localPort, final String serverHostName,
             final int serverPort) {
-        
+
         // Initialize object list
-//        ObjectsInitializer initializer = new ObjectsInitializer();
-//
-//        initializer.setClassForObject(3, Device.class);
-//        initializer.setInstancesForObject(3345, stateInstance);
-//        List<ObjectEnabler> enablers = initializer.createMandatory();
-//        enablers.add(initializer.create(3345));
-//
-//        // Create client
-//        final InetSocketAddress clientAddress = new InetSocketAddress(localHostName, localPort);
-//        final InetSocketAddress serverAddress = new InetSocketAddress(serverHostName, serverPort);
-//
-//        client = new LeshanClient(clientAddress, serverAddress, new ArrayList<LwM2mObjectEnabler>(enablers));
-//
-//        // Start the client
-//        client.start();
-//
-//        // Register to the server
-//        //final String endpointIdentifier = UUID.randomUUID().toString();
-//        
-//        RegisterResponse response = client.send(new RegisterRequest(endpointIdentifier));
-//        if (response == null) {
-//            System.out.println("Registration request timeout");
-//            return;
-//        }
-//
-//        System.out.println("Device Registration (Success? " + response.getCode() + ")");
-//        if (response.getCode() != ResponseCode.CREATED) {
-//            // TODO Should we have a error message on response ?
-//            // System.err.println("\tDevice Registration Error: " + response.getErrorMessage());
-//            System.err.println(
-//                    "If you're having issues connecting to the LWM2M endpoint, try using the DTLS port instead");
-//            return;
-//        }
-//
-//        registrationId = response.getRegistrationID();
-//        System.out.println("\tDevice: Registered Client Location '" + registrationId + "'");
-//
-//        // Deregister on shutdown and stop client.
-//        Runtime.getRuntime().addShutdownHook(new Thread() {
-//            @Override
-//            public void run() {
-//                if (registrationId != null) {
-//                    System.out.println("\tDevice: Deregistering Client '" + registrationId + "'");
-//                    client.send(new DeregisterRequest(registrationId), 1000);
-//                    client.stop();
-//                }
-//            }
-//        });
+        ObjectsInitializer initializer = new ObjectsInitializer();
+
+        initializer.setClassForObject(3, Device.class);
+        //initializer.setInstancesForObject(32801, stateInstance);
+        List<ObjectEnabler> enablers = initializer.createMandatory();
+        //aenablers.add(initializer.create(32801));
+
+        // Create client
+        final InetSocketAddress clientAddress = new InetSocketAddress(localHostName, localPort);
+        final InetSocketAddress serverAddress = new InetSocketAddress(serverHostName, serverPort);
+
+        client = new LeshanClient(clientAddress, serverAddress, new ArrayList<LwM2mObjectEnabler>(enablers));
+
+        // Start the client
+        client.start();
+
+        // Register to the server
+        //final String endpointIdentifier = UUID.randomUUID().toString();
+        RegisterResponse response = client.send(new RegisterRequest(endpointIdentifier));
+        if (response == null) {
+            System.out.println("Registration request timeout");
+            return;
+        }
+
+        System.out.println("Device Registration (Success? " + response.getCode() + ")");
+        if (response.getCode() != ResponseCode.CREATED) {
+            // TODO Should we have a error message on response ?
+            // System.err.println("\tDevice Registration Error: " + response.getErrorMessage());
+            System.err.println(
+                    "If you're having issues connecting to the LWM2M endpoint, try using the DTLS port instead");
+            return;
+        }
+
+        registrationId = response.getRegistrationID();
+        System.out.println("\tDevice: Registered Client Location '" + registrationId + "'");
+
+        // Deregister on shutdown and stop client.
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                if (registrationId != null) {
+                    System.out.println("\tDevice: Deregistering Client '" + registrationId + "'");
+                    client.send(new DeregisterRequest(registrationId), 1000);
+                    client.stop();
+                }
+            }
+        });
 
         // Change the location through the Console
         Scanner scanner = new Scanner(System.in);
         System.out.println("Press 'w','a','s','d' to change reported state.");
         while (scanner.hasNext()) {
             String nextMove = scanner.next();
-            stateInstance.changeState(nextMove);
+            //stateInstance.changeState(nextMove);
         }
         scanner.close();
-        stateInstance.changeState(State.StateSpace.FREE);
+        //stateInstance.changeState(State.StateSpace.FREE);
         //locationInstance.moveLocation("w");
-        
+
     }
 
     public static class Device extends BaseInstanceEnabler {
@@ -122,6 +121,7 @@ public class SmartParkingSpotClient {
         private final String modelNumber = "2015";
         private final String serialNumber = "leshan-client-001";
         private final BindingMode bindingModel = BindingMode.U;
+        private State state = State.free;
 
         private AtomicLong currentTimestamp = new AtomicLong(0);
 
@@ -163,6 +163,8 @@ public class SmartParkingSpotClient {
                 case 16:
                     return ReadResponse.success(resourceid, getSupportedBinding());
                 // TODO read resources
+                case 32801:
+                    return ReadResponse.success(resourceid, state.toString());
                 default:
                     return super.read(resourceid);
             }
@@ -189,6 +191,11 @@ public class SmartParkingSpotClient {
                     return WriteResponse.success();
                 case 15:
                     setTimezone((String) value.getValue());
+                    fireResourcesChange(resourceid);
+                    return WriteResponse.success();
+                case 32801:
+                    setState((String) value.getValue());
+                    //state = State.valueOf((String) value.getValue());
                     fireResourcesChange(resourceid);
                     return WriteResponse.success();
                 default:
@@ -255,36 +262,59 @@ public class SmartParkingSpotClient {
         private String getSupportedBinding() {
             return "U";
         }
+        
+        private void setState(String s) {
+            this.state = State.valueOf(s);
+            switch(this.state) {
+                case free:
+                    try {
+                        Process p = Runtime.getRuntime().exec("python set_green.py");
+                    } catch (Exception e) {}
+                case occupied:
+                    try {
+                        Process p = Runtime.getRuntime().exec("python set_red.py");
+                    } catch (Exception e) {}
+                case reserved:
+                    try {
+                        Process p = Runtime.getRuntime().exec("python set_orange.py");
+                    } catch (Exception e) {}
+            }
+        }
 
         // TODO write current timestamp
         // TODO exec reboot
     }
-    
-    public static class State extends BaseInstanceEnabler {
+
+    /*public static class State extends BaseInstanceEnabler {
+
         public enum StateSpace {
             FREE, OCCUPIED, RESERVED;
         }
-        public StateSpace state;
-        
+        public static StateSpace state;
+
         public State() {
             state = StateSpace.FREE;
         }
-        
+
         public void changeState(String s) {
             if (s.charAt(0) == 'w') {
                 changeState(State.StateSpace.OCCUPIED);
             } else if (s.charAt(0) == 's') {
                 changeState(State.StateSpace.FREE);
+            } else if (s.charAt(0) == 'a') {
+                changeState(State.StateSpace.RESERVED);
             }
+
         }
-        
+
         public void changeState(StateSpace s) {
+            fireResourcesChange(32801);
             state = s;
-            switch(s) {
+            switch (s) {
                 case FREE:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_green.py ");
-                    } catch(Exception e) {
+                    } catch (Exception e) {
                         System.out.println("green err");
                     }
                     //Call python executable to put lights to Green
@@ -292,7 +322,7 @@ public class SmartParkingSpotClient {
                 case OCCUPIED:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_red.py ");
-                    } catch(Exception e) { 
+                    } catch (Exception e) {
                         System.out.println("red err");
                     }
                     //Callpython executable to put lights to Red
@@ -300,16 +330,16 @@ public class SmartParkingSpotClient {
                 case RESERVED:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_orange.py ");
-                    } catch(Exception e) {
+                    } catch (Exception e) {
                         System.out.println("orange err");
                     }
                     //Call pyhon executable to put lights to Orange
                     break;
             }
         }
-        
-        public String stateOf(StateSpace s) {
-            switch(s) {
+
+        public static String stateOf(StateSpace s) {
+            switch (s) {
                 case FREE:
                     return "free";
                 case OCCUPIED:
@@ -343,9 +373,8 @@ public class SmartParkingSpotClient {
                     return super.read(resourceid);
             }
         }
-        
-        
-    }
+
+    }*/
 
     public static class Location extends BaseInstanceEnabler {
 
@@ -377,7 +406,7 @@ public class SmartParkingSpotClient {
         }
 
         public void moveLocation(String nextMove) {
-            System.out.println("move:"+nextMove.charAt(0));
+            System.out.println("move:" + nextMove.charAt(0));
             switch (nextMove.charAt(0)) {
                 case 'w':
                     moveLatitude(1.0f);
@@ -438,11 +467,11 @@ public class SmartParkingSpotClient {
      */
     public static void main(String[] args) {
 
-        String serverHost = "192.168.128.128";
+        String serverHost = "192.168.1.14";
         //String serverHost = "leshan.eclipse.org";
 
         SmartParkingSpotClient client = new SmartParkingSpotClient("Parking-Spot-5", "0", 0, serverHost, 5683);
-        
+
         //need gui to listen to arrow keys
         //client.addKeyListener(client);
     }
