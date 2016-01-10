@@ -1,5 +1,6 @@
 package com.mycompany.iot.parking;
 
+import biz.source_code.utils.RawConsoleInput;
 import java.awt.FlowLayout;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
@@ -19,6 +20,7 @@ import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import jdk.nashorn.internal.codegen.CompilerConstants;
 
 import org.eclipse.leshan.ResponseCode;
 import org.eclipse.leshan.client.californium.LeshanClient;
@@ -46,10 +48,9 @@ public class SmartParkingSpotClient {
     // the registration ID assigned by the server
     private String registrationId;
 
+    public volatile static State externalState = null;
+
 //    private final State stateInstance = new State();
-
-    private final Location locationInstance = new Location();
-
     public SmartParkingSpotClient(String endpointIdentifier, final String localHostName, final int localPort, final String serverHostName,
             final int serverPort) {
 
@@ -57,10 +58,10 @@ public class SmartParkingSpotClient {
         ObjectsInitializer initializer = new ObjectsInitializer();
 
         initializer.setClassForObject(3, Device.class);
+
         //initializer.setInstancesForObject(32801, stateInstance);
         List<ObjectEnabler> enablers = initializer.createMandatory();
         //aenablers.add(initializer.create(32801));
-
         // Create client
         final InetSocketAddress clientAddress = new InetSocketAddress(localHostName, localPort);
         final InetSocketAddress serverAddress = new InetSocketAddress(serverHostName, serverPort);
@@ -103,13 +104,33 @@ public class SmartParkingSpotClient {
         });
 
         // Change the location through the Console
-        Scanner scanner = new Scanner(System.in);
+        /*Scanner scanner = new Scanner(System.in);
         System.out.println("Press 'w','a','s','d' to change reported state.");
         while (scanner.hasNext()) {
             String nextMove = scanner.next();
             //stateInstance.changeState(nextMove);
         }
-        scanner.close();
+        scanner.close();*/
+        while (true) {
+            try {
+                int result = RawConsoleInput.read(true);
+                System.out.println(result);
+                if (result == 65) { //UP
+                    Device.setState(State.occupied);
+                    externalState = State.occupied;
+                } else if (result == 66) { //DOWN
+                    Device.setState(State.free);
+                    externalState = State.free;
+                } else if (result == 68) { //LEFT
+                    Device.setState(State.reserved);
+                    externalState = State.reserved;
+
+                } else if (result == 67) {
+                } //RIGHT
+            } catch (Exception e) {
+
+            }
+        }
         //stateInstance.changeState(State.StateSpace.FREE);
         //locationInstance.moveLocation("w");
 
@@ -122,6 +143,7 @@ public class SmartParkingSpotClient {
         private final String serialNumber = "leshan-client-001";
         private final BindingMode bindingModel = BindingMode.U;
         private State state = State.free;
+        private boolean stateExternallyUpdated = false;
 
         private AtomicLong currentTimestamp = new AtomicLong(0);
 
@@ -129,9 +151,13 @@ public class SmartParkingSpotClient {
             new Timer().schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    currentTimestamp.getAndAdd(1000);
+                    if (externalState != null) {
+                        state = externalState;
+                        setState(state.toString());
+                        externalState = null;
+                    }
                 }
-            }, 1000, 1000);
+            }, 1000, 100);
         }
 
         @Override
@@ -262,209 +288,41 @@ public class SmartParkingSpotClient {
         private String getSupportedBinding() {
             return "U";
         }
-        
+
         private void setState(String s) {
             this.state = State.valueOf(s);
-            switch(this.state) {
+            fireResourcesChange(32801);
+            setState(state);
+        }
+
+        public static void setState(State s) {
+
+            switch (s) {
                 case free:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_green.py");
-                    } catch (Exception e) {}
+                    } catch (Exception e) {
+                    }
+                    break;
                 case occupied:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_red.py");
-                    } catch (Exception e) {}
+                    } catch (Exception e) {
+                    }
+                    break;
                 case reserved:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_orange.py");
-                    } catch (Exception e) {}
-            }
-        }
-
-        // TODO write current timestamp
-        // TODO exec reboot
-    }
-
-    /*public static class State extends BaseInstanceEnabler {
-
-        public enum StateSpace {
-            FREE, OCCUPIED, RESERVED;
-        }
-        public static StateSpace state;
-
-        public State() {
-            state = StateSpace.FREE;
-        }
-
-        public void changeState(String s) {
-            if (s.charAt(0) == 'w') {
-                changeState(State.StateSpace.OCCUPIED);
-            } else if (s.charAt(0) == 's') {
-                changeState(State.StateSpace.FREE);
-            } else if (s.charAt(0) == 'a') {
-                changeState(State.StateSpace.RESERVED);
-            }
-
-        }
-
-        public void changeState(StateSpace s) {
-            fireResourcesChange(32801);
-            state = s;
-            switch (s) {
-                case FREE:
-                    try {
-                        Process p = Runtime.getRuntime().exec("python set_green.py ");
                     } catch (Exception e) {
-                        System.out.println("green err");
                     }
-                    //Call python executable to put lights to Green
-                    break;
-                case OCCUPIED:
-                    try {
-                        Process p = Runtime.getRuntime().exec("python set_red.py ");
-                    } catch (Exception e) {
-                        System.out.println("red err");
-                    }
-                    //Callpython executable to put lights to Red
-                    break;
-                case RESERVED:
-                    try {
-                        Process p = Runtime.getRuntime().exec("python set_orange.py ");
-                    } catch (Exception e) {
-                        System.out.println("orange err");
-                    }
-                    //Call pyhon executable to put lights to Orange
                     break;
             }
-        }
 
-        public static String stateOf(StateSpace s) {
-            switch (s) {
-                case FREE:
-                    return "free";
-                case OCCUPIED:
-                    return "occupied";
-                case RESERVED:
-                    return "reserved";
-                default:
-                    return "none";
-            }
-        }
-        
-        @Override
-        public ReadResponse read(int resourceid) {
-            System.out.println("Read on Location Resource " + resourceid);
-            switch (resourceid) {
-                case 3345:
-                    return ReadResponse.success(resourceid, stateOf(state));
-//                case 5500:
-//                    return ReadResponse.success(resourceid, getDigitalInputState());
-//                case 5501:
-//                    return ReadResponse.success(resourceid, getDigitalInputCounter());
-//                case 5702:
-//                    return ReadResponse.success(resourceid, getXValue());
-//                case 5703:
-//                    return ReadResponse.success(resourceid, getYValue());
-//                case 5704:
-//                    return ReadResponse.success(resourceid, getZValue());
-//                case 5750:
-//                    return ReadResponse.success(resourceid, getApplicationType());
-                default:
-                    return super.read(resourceid);
-            }
-        }
-
-    }*/
-
-    public static class Location extends BaseInstanceEnabler {
-
-        private Random random;
-        private float latitude;
-        private float longitude;
-        private Date timestamp;
-
-        public Location() {
-            random = new Random();
-            latitude = Float.valueOf(random.nextInt(180));
-            longitude = Float.valueOf(random.nextInt(360));
-            timestamp = new Date();
-        }
-
-        @Override
-        public ReadResponse read(int resourceid) {
-            System.out.println("Read on Location Resource " + resourceid);
-            switch (resourceid) {
-                case 0:
-                    return ReadResponse.success(resourceid, getLatitude());
-                case 1:
-                    return ReadResponse.success(resourceid, getLongitude());
-                case 5:
-                    return ReadResponse.success(resourceid, getTimestamp());
-                default:
-                    return super.read(resourceid);
-            }
-        }
-
-        public void moveLocation(String nextMove) {
-            System.out.println("move:" + nextMove.charAt(0));
-            switch (nextMove.charAt(0)) {
-                case 'w':
-                    moveLatitude(1.0f);
-                    break;
-                case 'a':
-                    moveLongitude(-1.0f);
-                    break;
-                case 's':
-                    moveLatitude(-1.0f);
-                    break;
-                case 'd':
-                    moveLongitude(1.0f);
-                    break;
-            }
-        }
-
-        private void moveLatitude(float delta) {
-            latitude = latitude + delta;
-            timestamp = new Date();
-            fireResourcesChange(0, 5);
-        }
-
-        private void moveLongitude(float delta) {
-            longitude = longitude + delta;
-            timestamp = new Date();
-            fireResourcesChange(1, 5);
-        }
-
-        public String getLatitude() {
-            return Float.toString(latitude - 90.0f);
-        }
-
-        public String getLongitude() {
-            return Float.toString(longitude - 180.f);
-        }
-
-        public Date getTimestamp() {
-            return timestamp;
+            // TODO write current timestamp
+            // TODO exec reboot
         }
     }
 
-    /**
-     * public void write() {
-     *
-     *
-     * WriteResponse response = client.send(new
-     * WriteRequest(WriteRequest.Mode.UPDATE, 3, col)); }
-     */
-    /**
-     * public void read() {
-     *
-     * client.send(new ReadRequest(registrationId));
-     *
-     * if(response.getCode() == ResponseCode.) {
-     *
-     * }
-     * }
-     */
     public static void main(String[] args) {
 
         String serverHost = "192.168.1.14";
