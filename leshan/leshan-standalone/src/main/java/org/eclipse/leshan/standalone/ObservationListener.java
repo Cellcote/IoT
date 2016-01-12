@@ -27,7 +27,7 @@ public class ObservationListener implements ObservationRegistryListener  {
                 System.out.println("New notification from client " + observation.getRegistrationId() + " on " + observation.getPath() + ": "
                         + value);
                 //System.out.println(extractNewValue(value));
-                
+                System.out.println(observation.getRegistrationId() + " - " + extractResourceId(value) + " - " + extractNewValue(value));
                 datastore.sendValue(observation.getRegistrationId(), extractResourceId(value), extractNewValue(value));
                 
             }

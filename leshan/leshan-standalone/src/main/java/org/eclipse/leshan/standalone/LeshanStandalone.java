@@ -175,14 +175,27 @@ public class LeshanStandalone {
                         Client c = findClient(spot);
                         String v = updates.get(i).vehicle;
                         String s = updates.get(i).state;
-                        System.out.println("Vehicle" + v);
-                        System.out.println("State" + s);
-                        WriteRequest writeRequest = new WriteRequest(WriteRequest.Mode.UPDATE, 32700, 0, 32801, s + "");
+                        //System.out.println("Vehicle" + v);
+                        //System.out.println("State" + s);
+                        WriteRequest writeRequest = new WriteRequest(WriteRequest.Mode.REPLACE, 32700, 0, 32801, s + "");
                         lwServer.send(c, writeRequest);
-                        writeRequest = new WriteRequest(WriteRequest.Mode.UPDATE, 32700, 0, 32802, v + " ");
+                        writeRequest = new WriteRequest(WriteRequest.Mode.REPLACE, 32700, 0, 32802, v + " ");
                         lwServer.send(c, writeRequest);
-                        writeRequest = new WriteRequest(WriteRequest.Mode.UPDATE, 3341, 0, 5527, s);
+                        writeRequest = new WriteRequest(WriteRequest.Mode.REPLACE, 3341, 0, 5527, s);
                         lwServer.send(c, writeRequest);
+                        asyncHttpCLient.preparePut("http://192.168.99.100:8081/parkingspots/"+spot).execute(new AsyncCompletionHandler<Response>() {
+                            @Override
+                            public Response onCompleted(Response rspns) throws Exception {
+                                //System.out.println("Client heartbeat");
+                                return rspns;
+                            }
+
+                            @Override
+                            public void onThrowable(Throwable t) {
+                                System.out.println("XXX");
+                                System.out.println(t.toString());
+                            }
+                        });
                     }
                 }
             }
