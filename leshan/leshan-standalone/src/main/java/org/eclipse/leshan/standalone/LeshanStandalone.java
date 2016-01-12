@@ -20,6 +20,7 @@ package org.eclipse.leshan.standalone;
 import com.ning.http.client.AsyncCompletionHandler;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.Response;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.security.AlgorithmParameters;
@@ -38,6 +39,8 @@ import java.security.spec.KeySpec;
 import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
+import javax.jmdns.JmDNS;
+import javax.jmdns.ServiceInfo;
 import org.eclipse.californium.core.network.EndpointObserver;
 
 import org.eclipse.jetty.server.Server;
@@ -249,7 +252,32 @@ public class LeshanStandalone {
     }
 
     public static void main(String[] args) {
-        new LeshanStandalone().start();
+        try {
+//            System.out.println("Opening JmDNS");
+            JmDNS jmdns = JmDNS.create();
+//            System.out.println("Opened JmDNS");
+//            System.out.println("\nPress r and Enter, to register HTML service 'foo'");
+            int b;
+//            while ((b = System.in.read()) != -1 && (char) b != 'r');
+            ServiceInfo info = ServiceInfo.create("_coap._udp.local.", "IoTBroker",
+                                                   5683, 0, 0, "IoTBroker");
+                       
+            jmdns.registerService(info);
+            
+            new LeshanStandalone().start();
+            
+            System.out.println("\nRegistered Service as "+info);
+            System.out.println("Press q and Enter, to quit");
+            
+            //int b;
+            while ((b = System.in.read()) != -1 && (char) b != 'q'); 
+            System.out.println("Closing JmDNS");
+            jmdns.close();
+            System.out.println("Done");
+//            System.exit(0);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private Client findClient(String spotName) {
