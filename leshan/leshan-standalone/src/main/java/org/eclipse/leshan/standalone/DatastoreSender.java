@@ -13,15 +13,30 @@ package org.eclipse.leshan.standalone;
 import com.ning.http.client.AsyncCompletionHandler;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.Response;
+import java.io.IOException;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.JSONValue;
 
 /**
  *
  * @author rikschreurs
  */
 class DatastoreSender {
-
+    //2016-01-12 18:40:36
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    Date lastChecked = null;
     Map<String, String> clientMap = new HashMap<String, String>();
     private AsyncHttpClient asyncHttpCLient = new AsyncHttpClient();
 
@@ -55,5 +70,60 @@ class DatastoreSender {
                 System.out.println(t.toString());
             }
         });
+    }
+
+    public ArrayList<Reservation> checkForNewReservations() {
+        ArrayList<Reservation> updates = new ArrayList<>();
+        try {
+            Future<Response> f = asyncHttpCLient.prepareGet("http://192.168.99.100:8081/parkingspots/").execute(new AsyncCompletionHandler<Response>() {
+                @Override
+                public Response onCompleted(Response rspns) throws Exception {
+                    return rspns;
+                }
+            });
+            String jsonString = f.get().getResponseBody();
+            Object obj = JSONValue.parse(jsonString);
+            System.out.println("x" + obj.toString());
+            JSONArray array = (JSONArray) obj;
+            System.out.println("y"+array.toString());
+            for (int i = 0; i < array.size(); i++) {
+                JSONObject object = (JSONObject) array.get(i);
+                System.out.println("z"+object.toString());
+                if (lastChecked == null || sdf.parse(object.get("updated_at").toString()).before(lastChecked)) {
+                    System.out.println("A");
+                    String spot = object.get("uuid").toString();
+                    String vehicle = "";
+                    String state = "free";
+                    if (object.get("vehicle") == null) {
+                        System.out.println("Found null vehicle");
+                    } else {
+                        vehicle = object.get("vehicle").toString();
+                        state = "occupied";
+                    }
+
+                    if (object.get("reservation") == null) {
+                        System.out.println("Found null reservation");
+                    } else {
+                        state = "reserved";
+                    }
+                    
+                    System.out.println(state);
+                    updates.add(new Reservation(spot, vehicle, state));
+                }
+                else {
+                    System.out.println("B");
+                    System.out.println(lastChecked == null);
+                    System.out.println(sdf.parse(object.get("updated_at").toString()).before(lastChecked));
+                    System.out.println(lastChecked);
+                    System.out.println(object.get("updated_at").toString());
+                }
+            }
+            lastChecked = new Date();
+            return updates;
+        } catch (InterruptedException | ExecutionException | IOException | ParseException ex) {
+            Logger.getLogger(DatastoreSender.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return null;
+
     }
 }

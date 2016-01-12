@@ -35,12 +35,16 @@ import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.KeySpec;
+import java.util.ArrayList;
+import java.util.Timer;
+import java.util.TimerTask;
 import org.eclipse.californium.core.network.EndpointObserver;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.webapp.WebAppContext;
 import org.eclipse.leshan.core.request.ObserveRequest;
+import org.eclipse.leshan.core.request.WriteRequest;
 import org.eclipse.leshan.server.californium.LeshanServerBuilder;
 import org.eclipse.leshan.server.californium.impl.LeshanServer;
 import org.eclipse.leshan.server.client.Client;
@@ -59,10 +63,10 @@ public class LeshanStandalone {
     private static final Logger LOG = LoggerFactory.getLogger(LeshanStandalone.class);
 
     private Server server;
-    private LeshanServer lwServer;
+    private LeshanServer lwServer = null;
     private ObservationListener observationListener;
     private DatastoreSender datastore = new DatastoreSender();
-      private AsyncHttpClient asyncHttpCLient = new AsyncHttpClient();
+    private AsyncHttpClient asyncHttpCLient = new AsyncHttpClient();
 
     public void start() {
         // Use those ENV variables for specifying the interface to be bound for coap and coaps
@@ -158,6 +162,32 @@ public class LeshanStandalone {
 
         lwServer.start();
 
+        new Timer().schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (lwServer == null) {
+                    return;
+                }
+                ArrayList<Reservation> updates = datastore.checkForNewReservations();
+                if (updates != null) {
+                    for (int i = 0; i < updates.size(); i++) {
+                        String spot = updates.get(i).spot;
+                        Client c = findClient(spot);
+                        String v = updates.get(i).vehicle;
+                        String s = updates.get(i).state;
+                        System.out.println("Vehicle" + v);
+                        System.out.println("State" + s);
+                        WriteRequest writeRequest = new WriteRequest(WriteRequest.Mode.UPDATE, 32700, 0, 32801, s + "");
+                        lwServer.send(c, writeRequest);
+                        writeRequest = new WriteRequest(WriteRequest.Mode.UPDATE, 32700, 0, 32802, v + " ");
+                        lwServer.send(c, writeRequest);
+                        writeRequest = new WriteRequest(WriteRequest.Mode.UPDATE, 3341, 0, 5527, s);
+                        lwServer.send(c, writeRequest);
+                    }
+                }
+            }
+        }, 2000, 1000);
+
         // Now prepare and start jetty
         String webPort = System.getenv("PORT");
         if (webPort == null || webPort.isEmpty()) {
@@ -207,5 +237,9 @@ public class LeshanStandalone {
 
     public static void main(String[] args) {
         new LeshanStandalone().start();
+    }
+
+    private Client findClient(String spotName) {
+        return lwServer.getClientRegistry().get(spotName);
     }
 }
