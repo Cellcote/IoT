@@ -1,6 +1,7 @@
 package com.mycompany.iot.parking;
 
 import biz.source_code.utils.RawConsoleInput;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Date;
@@ -8,6 +9,10 @@ import java.util.List;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
+import javax.jmdns.JmDNS;
+import javax.jmdns.ServiceEvent;
+import javax.jmdns.ServiceInfo;
+import javax.jmdns.ServiceListener;
 
 import org.eclipse.leshan.ResponseCode;
 import org.eclipse.leshan.client.californium.LeshanClient;
@@ -408,12 +413,46 @@ public class SmartParkingSpotClient {
             }
         }
     }
+    
+    static class BonjourServiceListener implements ServiceListener {
+        @Override
+        public void serviceAdded(ServiceEvent event) {
+//            System.out.println("Service added   : " + event.getName() + "." + event.getType());
+        }
+
+        @Override
+        public void serviceRemoved(ServiceEvent event) {
+//            System.out.println("Service removed : " + event.getName() + "." + event.getType());
+        }
+
+        @Override
+        public void serviceResolved(ServiceEvent event) {
+//            System.out.println("Service resolved: " + event.getInfo());
+        }
+    }
 
     public static void main(String[] args) {
 
-        String serverHost = "192.168.128.128";
-        //String serverHost = "leshan.eclipse.org";
-
-        SmartParkingSpotClient client = new SmartParkingSpotClient("Parking-Spot-5", "0", 0, serverHost, 5683);
+        try {
+            String bonjourServiceType = "_coap._udp.local.";
+            JmDNS bonjourService = JmDNS.create();
+            bonjourService.addServiceListener(bonjourServiceType, new BonjourServiceListener());
+            ServiceInfo[] serviceInfos = bonjourService.list(bonjourServiceType);
+            for (ServiceInfo info : serviceInfos) {
+                String s = info.getURL();
+                //remove "http://" and ":5683".
+                String ip = s.substring("http://".length(), s.length() - ":5683".length());
+                System.out.println("Found service: " + info.getName() + " with ip: " + ip);
+                int port = 5683;
+                
+                SmartParkingSpotClient client = new SmartParkingSpotClient("Parking-Spot-5", "0", 0, ip, port);
+                
+                continue;
+              
+            }
+            bonjourService.close();
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
     }
 }
