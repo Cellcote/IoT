@@ -1,21 +1,27 @@
-/*******************************************************************************
+/**
+ * *****************************************************************************
  * Copyright (c) 2013-2015 Sierra Wireless and others.
- * 
+ *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * and Eclipse Distribution License v1.0 which accompany this distribution.
- * 
+ *
  * The Eclipse Public License is available at
  *    http://www.eclipse.org/legal/epl-v10.html
  * and the Eclipse Distribution License is available at
  *    http://www.eclipse.org/org/documents/edl-v10.html.
- * 
+ *
  * Contributors:
  *     Sierra Wireless - initial API and implementation
- *******************************************************************************/
+ ******************************************************************************
+ */
 package org.eclipse.leshan.standalone;
 
+import com.ning.http.client.AsyncCompletionHandler;
+import com.ning.http.client.AsyncHttpClient;
+import com.ning.http.client.Response;
 import java.math.BigInteger;
+import java.net.InetSocketAddress;
 import java.security.AlgorithmParameters;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
@@ -29,12 +35,16 @@ import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.KeySpec;
+import org.eclipse.californium.core.network.EndpointObserver;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.webapp.WebAppContext;
+import org.eclipse.leshan.core.request.ObserveRequest;
 import org.eclipse.leshan.server.californium.LeshanServerBuilder;
 import org.eclipse.leshan.server.californium.impl.LeshanServer;
+import org.eclipse.leshan.server.client.Client;
+import org.eclipse.leshan.server.client.ClientRegistryListener;
 import org.eclipse.leshan.server.impl.SecurityRegistryImpl;
 import org.eclipse.leshan.standalone.servlet.ClientServlet;
 import org.eclipse.leshan.standalone.servlet.EventServlet;
@@ -50,6 +60,9 @@ public class LeshanStandalone {
 
     private Server server;
     private LeshanServer lwServer;
+    private ObservationListener observationListener;
+    private DatastoreSender datastore = new DatastoreSender();
+      private AsyncHttpClient asyncHttpCLient = new AsyncHttpClient();
 
     public void start() {
         // Use those ENV variables for specifying the interface to be bound for coap and coaps
@@ -60,11 +73,11 @@ public class LeshanStandalone {
         LeshanServerBuilder builder = new LeshanServerBuilder();
         if (iface != null && !iface.isEmpty()) {
             builder.setLocalAddress(iface.substring(0, iface.lastIndexOf(':')),
-                Integer.parseInt(iface.substring(iface.lastIndexOf(':') + 1, iface.length())));
+                    Integer.parseInt(iface.substring(iface.lastIndexOf(':') + 1, iface.length())));
         }
         if (ifaces != null && !ifaces.isEmpty()) {
             builder.setLocalAddressSecure(ifaces.substring(0, ifaces.lastIndexOf(':')),
-                Integer.parseInt(ifaces.substring(ifaces.lastIndexOf(':') + 1, ifaces.length())));
+                    Integer.parseInt(ifaces.substring(ifaces.lastIndexOf(':') + 1, ifaces.length())));
         }
 
         // Get public and private server key
@@ -99,6 +112,50 @@ public class LeshanStandalone {
         }
 
         lwServer = builder.build();
+
+        observationListener = new ObservationListener(datastore);
+        // listen for observe notifications
+        lwServer.getObservationRegistry().addListener(observationListener);
+
+        lwServer.getClientRegistry().addListener(new ClientRegistryListener() {
+            @Override
+            public void registered(Client client) {
+                System.out.println("New client registered");
+                asyncHttpCLient.preparePut("http://192.168.99.100:8081/parkingspots/" + client.getEndpoint()).execute(new AsyncCompletionHandler<Response>() {
+                    @Override
+                    public Response onCompleted(Response rspns) throws Exception {
+                        System.out.println("Client registered");
+                        return rspns;
+                    }
+
+                    @Override
+                    public void onThrowable(Throwable t) {
+                        System.out.println("XXX");
+                        System.out.println(t.toString());
+                    }
+                });
+                ObserveRequest request = new ObserveRequest("/6");
+                lwServer.send(client, request);
+                request = new ObserveRequest("/3341");
+                lwServer.send(client, request);
+                request = new ObserveRequest("/3345/0/5703");
+                lwServer.send(client, request);
+                request = new ObserveRequest("/32700");
+                lwServer.send(client, request);
+                datastore.addNewClient(client.getRegistrationId(), client.getEndpoint());
+            }
+
+            @Override
+            public void updated(Client clientUpdated) {
+                System.out.println("Client updated");
+            }
+
+            @Override
+            public void unregistered(Client client) {
+                System.out.println("Client unregistered");
+            }
+        });
+
         lwServer.start();
 
         // Now prepare and start jetty

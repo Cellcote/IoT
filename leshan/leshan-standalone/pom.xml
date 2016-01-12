@@ -55,9 +55,13 @@ Contributors:
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.ning</groupId>
+            <artifactId>async-http-client</artifactId>
+            <version>1.9.32</version>
+        </dependency>
         <!-- runtime dependencies -->
-       <dependency>
+        <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
             <scope>runtime</scope>
@@ -89,13 +93,13 @@ Contributors:
                     </descriptorRefs>
                 </configuration>
                 <executions>
-                  <execution>
-                    <id>make-assembly</id> <!-- this is used for inheritance merges -->
-                    <phase>package</phase> <!-- bind to the packaging phase -->
-                    <goals>
-                      <goal>single</goal>
-                    </goals>
-                  </execution>
+                    <execution>
+                        <id>make-assembly</id> <!-- this is used for inheritance merges -->
+                        <phase>package</phase> <!-- bind to the packaging phase -->
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>

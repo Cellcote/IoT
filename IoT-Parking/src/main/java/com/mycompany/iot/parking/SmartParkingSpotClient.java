@@ -3,7 +3,9 @@ package com.mycompany.iot.parking;
 import biz.source_code.utils.RawConsoleInput;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -28,7 +30,7 @@ public class SmartParkingSpotClient {
     // the registration ID assigned by the server
     private String registrationId;
 
-    public volatile static State externalState = null;
+    public volatile static int externalY = 0;
 
 //    private final State stateInstance = new State();
     public SmartParkingSpotClient(String endpointIdentifier, final String localHostName, final int localPort, final String serverHostName,
@@ -37,7 +39,10 @@ public class SmartParkingSpotClient {
         // Initialize object list
         ObjectsInitializer initializer = new ObjectsInitializer();
 
-        initializer.setClassForObject(3, Device.class);
+        initializer.setClassForObject(3341, AddressableTextDisplayObject.class);
+        initializer.setClassForObject(3345, MultipleAxisJoystickObject.class);
+        initializer.setClassForObject(32700, ParkingSpotObject.class);
+        initializer.setClassForObject(6, Location.class);
 
         //initializer.setInstancesForObject(32801, stateInstance);
         List<ObjectEnabler> enablers = initializer.createMandatory();
@@ -96,16 +101,12 @@ public class SmartParkingSpotClient {
                 int result = RawConsoleInput.read(true);
                 //System.out.println(result);
                 if (result == 65) { //UP
-                    Device.setState(State.occupied);
-                    externalState = State.occupied;
+                    //Device.setState(State.occupied);
+                    externalY = 100;
                 } else if (result == 66) { //DOWN
-                    Device.setState(State.free);
-                    externalState = State.free;
-                } else if (result == 68) { //LEFT
-                    Device.setState(State.reserved);
-                    externalState = State.reserved;
-                } else if (result == 67) {
-                } //RIGHT
+                    //Device.setState(State.free);
+                    externalY = -100;
+                }
             } catch (Exception e) {
 
             }
@@ -115,7 +116,7 @@ public class SmartParkingSpotClient {
 
     }
 
-    public static class Device extends BaseInstanceEnabler {
+    /*public static class Device extends BaseInstanceEnabler {
 
         private State state = State.free;
 
@@ -175,28 +176,242 @@ public class SmartParkingSpotClient {
                 case free:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_green.py");
-                    } catch (Exception e) { }
+                    } catch (Exception e) {
+                    }
                     break;
                 case occupied:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_red.py");
-                    } catch (Exception e) { }
+                    } catch (Exception e) {
+                    }
                     break;
                 case reserved:
                     try {
                         Process p = Runtime.getRuntime().exec("python set_orange.py");
-                    } catch (Exception e) { }
+                    } catch (Exception e) {
+                    }
                     break;
             }
 
             // TODO write current timestamp
             // TODO exec reboot
         }
+    }*/
+
+    public static class Location extends BaseInstanceEnabler {
+
+        private Random random;
+        private float latitude;
+        private float longitude;
+        private Date timestamp;
+
+        public Location() {
+            random = new Random();
+            latitude = Float.valueOf(random.nextInt(180));
+            longitude = Float.valueOf(random.nextInt(360));
+            timestamp = new Date();
+        }
+
+        @Override
+        public ReadResponse read(int resourceid) {
+            System.out.println("Read on Location Resource " + resourceid);
+            switch (resourceid) {
+                case 0:
+                    return ReadResponse.success(resourceid, getLatitude());
+                case 1:
+                    return ReadResponse.success(resourceid, getLongitude());
+                case 2:
+                    return ReadResponse.success(resourceid, "");
+                case 3:
+                    return ReadResponse.success(resourceid, "");
+                case 4:
+                    return ReadResponse.success(resourceid, "");
+                case 5:
+                    return ReadResponse.success(resourceid, timestamp);
+                default:
+                    return super.read(resourceid);
+            }
+        }
+
+        public String getLatitude() {
+            return Float.toString(random.nextFloat());
+        }
+
+        public String getLongitude() {
+            return Float.toString(random.nextFloat());
+        }
+    }
+
+    public static class ParkingSpotObject extends BaseInstanceEnabler {
+
+        private String name = "Parking-Spot-5";
+        private String state = "free";
+        private String vehicleId = "";
+        private float billingRate = 0;
+
+        public ParkingSpotObject() {
+        }
+
+        @Override
+        public ReadResponse read(int resourceid) {
+            System.out.println("Read on Location Resource " + resourceid);
+            switch (resourceid) {
+                case 32800:
+                    return ReadResponse.success(resourceid, name);
+                case 32801:
+                    return ReadResponse.success(resourceid, state);
+                case 32802:
+                    return ReadResponse.success(resourceid, vehicleId);
+                case 32803:
+                    return ReadResponse.success(resourceid, billingRate);
+                default:
+                    return super.read(resourceid);
+            }
+        }
+
+        @Override
+        public WriteResponse write(int resourceid, LwM2mResource value) {
+            System.out.println("Write on Device Resource " + resourceid + " value " + value);
+            switch (resourceid) {
+                case 32801:
+                    this.state = (String) value.getValue();
+                    return WriteResponse.success();
+                case 32802:
+                    this.vehicleId = (String) value.getValue();
+                    return WriteResponse.success();
+                case 32803:
+                    this.billingRate = Float.parseFloat(String.valueOf(value.getValue()));
+                    return WriteResponse.success();
+                default:
+                    return super.write(resourceid, value);
+            }
+        }
+
+    }
+
+    public static class MultipleAxisJoystickObject extends BaseInstanceEnabler {
+
+        private int yValue = 0;
+        private int counter = 0;
+
+        public MultipleAxisJoystickObject() {
+
+            new Timer().schedule(new TimerTask() {
+                @Override
+                public void run() {
+
+                    if (externalY != 0) {
+                        yValue = externalY;
+                        makeChange();
+                        externalY = 0;
+                    }
+                }
+            }, 1000, 100);
+        }
+
+        @Override
+        public ReadResponse read(int resourceid) {
+            System.out.println("Read on Location Resource " + resourceid);
+            switch (resourceid) {
+                case 5500:
+                    return ReadResponse.success(resourceid, true);
+                case 5501:
+                    return ReadResponse.success(resourceid, counter);
+                case 5702:
+                    return ReadResponse.success(resourceid, -100);
+                case 5703:
+                    return ReadResponse.success(resourceid, yValue);
+                case 5704:
+                    return ReadResponse.success(resourceid, -100);
+                case 5750:
+                    return ReadResponse.success(resourceid, "");
+                default:
+                    return super.read(resourceid);
+            }
+        }
+
+        private void makeChange() {
+            fireResourcesChange(5703);
+        }
+    }
+
+    public static class AddressableTextDisplayObject extends BaseInstanceEnabler {
+
+        private String text = "free";
+
+        @Override
+        public ReadResponse read(int resourceid) {
+            System.out.println("Read on Location Resource " + resourceid);
+            switch (resourceid) {
+                case 5527:
+                    return ReadResponse.success(resourceid, this.text);
+                case 5528:
+                    return ReadResponse.success(resourceid, 0);
+                case 5529:
+                    return ReadResponse.success(resourceid, 0);
+                case 5545:
+                    return ReadResponse.success(resourceid, 0);
+                case 5546:
+                    return ReadResponse.success(resourceid, 0);
+                case 5530:
+                    return ReadResponse.success(resourceid, 0);
+                case 5548:
+                    return ReadResponse.success(resourceid, 0f);
+                case 5531:
+                    return ReadResponse.success(resourceid, 0f);
+                case 5750:
+                    return ReadResponse.success(resourceid, "0");
+                default:
+                    return super.read(resourceid);
+            }
+        }
+
+        @Override
+        public WriteResponse write(int resourceid, LwM2mResource value) {
+            System.out.println("Write on Device Resource " + resourceid + " value " + value);
+            switch (resourceid) {
+                case 5527:
+                    State s = State.valueOf((String) value.getValue());
+                    setLight(s);
+                    this.text = (String) value.getValue();
+                    return WriteResponse.success();
+                default:
+                    return super.write(resourceid, value);
+            }
+        }
+
+        @Override
+        public ExecuteResponse execute(int resourceId, String params) {
+            return ExecuteResponse.success();
+        }
+
+        private void setLight(State s) {
+            switch (s) {
+                case free:
+                    try {
+                        Process p = Runtime.getRuntime().exec("python set_green.py");
+                    } catch (Exception e) {
+                    }
+                    break;
+                case occupied:
+                    try {
+                        Process p = Runtime.getRuntime().exec("python set_red.py");
+                    } catch (Exception e) {
+                    }
+                    break;
+                case reserved:
+                    try {
+                        Process p = Runtime.getRuntime().exec("python set_orange.py");
+                    } catch (Exception e) {
+                    }
+                    break;
+            }
+        }
     }
 
     public static void main(String[] args) {
 
-        String serverHost = "192.168.1.14";
+        String serverHost = "192.168.128.128";
         //String serverHost = "leshan.eclipse.org";
 
         SmartParkingSpotClient client = new SmartParkingSpotClient("Parking-Spot-5", "0", 0, serverHost, 5683);
